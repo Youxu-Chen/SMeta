@@ -24,7 +24,8 @@
 
 // #define _SPEEDYMETA_DELETE
 // #define _SPEEDYMETA_FEEDBACK
-#define _SPEEDYMETA_AC
+// #define _SPEEDYMETA_DC
+// #define _SPEEDYMETA_AC
 
 class OSDMap;
 class PerfCounters;

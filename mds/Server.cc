@@ -1590,7 +1590,8 @@ void Server::set_trace_dist(Session *session, MClientReply *reply,
     dout(20) << "set_trace_dist added in   " << *in << dendl;
     reply->head.is_target = 1;
     
-    #if defined(_SPEEDYMETA) || defined(_SPEEDYMETA_AC)
+    // #if defined(_SPEEDYMETA) || defined(_SPEEDYMETA_AC)
+    #ifdef _SPEEDYMETA
     int batched = speedymeta_batch_reply(mdr, &bl, session, snapid);
     if(batched > 0)
       reply->head.is_target = 2;
@@ -3098,14 +3099,14 @@ void Server::handle_client_getattr(MDRequestRef& mdr, bool is_lookup)
   }
   #endif
 
-  #ifdef _SPEEDYMETA_AC
+  // #ifdef _SPEEDYMETA_AC
+  // // if(ref->is_file() && is_lookup){
   // if(ref->is_file() && is_lookup){
-  if(ref->is_file() && is_lookup){
-    int r_phd = speedymeta_prefetch_ac(mdr, ref);
-    if(r_phd > 0)
-      return;
-  }
-  #endif
+  //   int r_phd = speedymeta_prefetch_ac(mdr, ref);
+  //   if(r_phd > 0)
+  //     return;
+  // }
+  // #endif
 
   // reply
   dout(10) << "reply to stat on " << *req << dendl;

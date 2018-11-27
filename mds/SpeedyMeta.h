@@ -154,6 +154,7 @@ int Server::speedymeta_prefetch(MDRequestRef& mdr, CInode *ref){
 
 	int mask = mdr->client_request->head.args.getattr.mask;
 
+	#ifdef _SPEEDYMETA_DC
 	for(; px != dclist->end(); px++){
 		// traverse data correlation and prefetch closer data correlation
 		// if(strncmp(px->first.c_str(), "user.dc.", 8) != 0) // this entry is not data correlation, hence skip
@@ -161,13 +162,13 @@ int Server::speedymeta_prefetch(MDRequestRef& mdr, CInode *ref){
 		// std::string path_phd = std::string(boost::string_view(px->first)).substr(8);
 		std::string path_phd = std::string(boost::string_view(mempool::mds_co::string(px->first)));
 		// dout(2) << " _SPEEDYMETA " << " target filepath:" << s_ref << dendl;
-		dout(2) << " _SPEEDYMETA " << " traversing xattr " << path_phd << dendl;
+		dout(2) << " _SPEEDYMETA_DC " << " traversing xattr " << path_phd << dendl;
 		if(path_phd.compare(0,1,"/") != 0)
 			continue;
 		
 		if(speedymeta_get_dcscore(ref, path_phd) >= SCORE_THRESHOLD){
 			// score is higher than threshold, prefetch it now!
-			dout(2) << " _SPEEDYMETA " << " prefetching " << path_phd << "..." << dendl;
+			dout(2) << " _SPEEDYMETA_DC " << " prefetching " << path_phd << "..." << dendl;
 				
 			// clean up tmp structure
 			vdn_phd.clear();
@@ -176,36 +177,36 @@ int Server::speedymeta_prefetch(MDRequestRef& mdr, CInode *ref){
 			filepath fp_phdref(path_phd);
 			// fp_phdref.push_dentry(path_phd);
 			std::string tmp_s = fp_phdref.get_path();
-			dout(2) << " _SPEEDYMETA " << "1" << dendl;
+			dout(2) << " _SPEEDYMETA_DC " << "1" << dendl;
 			unsigned tmp_dep = fp_phdref.depth();
-			dout(2) << " _SPEEDYMETA " << "2" << dendl;
+			dout(2) << " _SPEEDYMETA_DC " << "2" << dendl;
 			int tmp_len = fp_phdref.length();
-			dout(2) << " _SPEEDYMETA " << fp_phdref.c_str() << " path:" << tmp_s << " depth:" << tmp_dep << " length " << tmp_len << dendl;
+			dout(2) << " _SPEEDYMETA_DC " << fp_phdref.c_str() << " path:" << tmp_s << " depth:" << tmp_dep << " length " << tmp_len << dendl;
 			
 			int r = mdcache->path_traverse(mdr, NULL, NULL, fp_phdref, &vdn_phd, &in_phd, MDS_TRAVERSE_FORWARD);
-			dout(2) << " _SPEEDYMETA " << " res(path_traverse) = " << r << dendl;
+			dout(2) << " _SPEEDYMETA_DC " << " res(path_traverse) = " << r << dendl;
 			if(r > 0) return r;  // delay
 			if(in_phd == NULL){
 				// file is no longer exist and delete this dc now
-				dout(2) << " _SPEEDYMETA " << " inode is NULL" << dendl;
+				dout(2) << " _SPEEDYMETA_DC " << " inode is NULL" << dendl;
 				#ifdef _SPEEDYMETA_DELETE
 				dclist->erase(px++);
 				ref->project_inode(true).inode.xattr_version++;
 				ref->mark_dirty(ref->pre_dirty() + 1, mdlog->get_current_segment());
-				dout(2) << " _SPEEDYMETA " << " file " << path_phd << " no longer exists and delete this data correlation now." << dendl;
+				dout(2) << " _SPEEDYMETA_DC " << " file " << path_phd << " no longer exists and delete this data correlation now." << dendl;
 				#endif
 				continue;
 			}
 			if(in_phd->ino() == ref->ino())
 				continue;
 
-			dout(2) << " _SPEEDYMETA " << *in_phd << dendl;
+			dout(2) << " _SPEEDYMETA_DC " << *in_phd << dendl;
 
 			// file exist and prefetch now
 			filepath fp_phd;
 			fp_phd.set_path(path_phd.c_str());
 			if(vdn_phd.size() == fp_phd.depth()){
-				dout(2) << " _SPEEDYMETA " << " # dentry = depth" << dendl;
+				dout(2) << " _SPEEDYMETA_DC " << " # dentry = depth" << dendl;
 
 				// insert to prefetch list
 				vin_phd.push_back(in_phd);
@@ -214,6 +215,80 @@ int Server::speedymeta_prefetch(MDRequestRef& mdr, CInode *ref){
 			}
 		}
 	}
+	#endif
+
+	#ifdef _SPEEDYMETA_AC
+	std::string s_ref;
+	ref->make_path_string(s_ref);
+	dout(2) << " _SPEEDYMETA_AC " << " target filepath:" << s_ref << dendl;
+
+	// ref has no access correlations, return without prefetching
+	if(list_ac.find(s_ref) != list_ac.end()){
+
+		// CInode *in_phd;
+
+		// int mask = mdr->client_request->head.args.getattr.mask;
+
+		// list access correlations
+		std::vector<string>::iterator it = list_ac[s_ref].begin();
+		for(; it != list_ac[s_ref].end(); it++){
+			dout(2) << __func__ << " " << s_ref << " --> " << *it << dendl;
+
+			std::string path_phd = *it;
+
+			dout(2) << " _SPEEDYMETA_AC " << " traversing xattr " << path_phd << dendl;
+			if(path_phd.compare(0,1,"/") != 0)
+				continue;
+			
+			// score is higher than threshold, prefetch it now!
+			dout(2) << " _SPEEDYMETA_AC " << " prefetching " << path_phd << "..." << dendl;
+				
+			// clean up tmp structure
+			vdn_phd.clear();
+			in_phd = NULL;
+
+			filepath fp_phdref(path_phd);
+			// fp_phdref.push_dentry(path_phd);
+			std::string tmp_s = fp_phdref.get_path();
+			dout(2) << " _SPEEDYMETA_AC " << "1" << dendl;
+			unsigned tmp_dep = fp_phdref.depth();
+			dout(2) << " _SPEEDYMETA_AC " << "2" << dendl;
+			int tmp_len = fp_phdref.length();
+			dout(2) << " _SPEEDYMETA_AC " << fp_phdref.c_str() << " path:" << tmp_s << " depth:" << tmp_dep << " length " << tmp_len << dendl;
+			
+			int r = mdcache->path_traverse(mdr, NULL, NULL, fp_phdref, &vdn_phd, &in_phd, MDS_TRAVERSE_FORWARD);
+			dout(2) << " _SPEEDYMETA_AC " << " res(path_traverse) = " << r << dendl;
+			if(r > 0) return r;  // delay
+			if(in_phd == NULL){
+				// file is no longer exist and delete this dc now
+				dout(2) << " _SPEEDYMETA_AC " << " inode is NULL" << dendl;
+				#ifdef _SPEEDYMETA_DELETE
+				dclist->erase(px++);
+				ref->project_inode(true).inode.xattr_version++;
+				ref->mark_dirty(ref->pre_dirty() + 1, mdlog->get_current_segment());
+				dout(2) << " _SPEEDYMETA_AC " << " file " << path_phd << " no longer exists and delete this data correlation now." << dendl;
+				#endif
+				continue;
+			}
+			if(in_phd->ino() == ref->ino())
+				continue;
+
+			dout(2) << " _SPEEDYMETA_AC " << *in_phd << dendl;
+
+			// file exist and prefetch now
+			filepath fp_phd;
+			fp_phd.set_path(path_phd.c_str());
+			if(vdn_phd.size() == fp_phd.depth()){
+				dout(2) << " _SPEEDYMETA_AC " << " # dentry = depth" << dendl;
+
+				// insert to prefetch list
+				vin_phd.push_back(in_phd);
+				vvdn_phd.push_back(vdn_phd);
+
+			}
+		}
+	}
+	#endif
 
 	// lock and check access
 	vector<CInode*>::iterator i_it = vin_phd.begin();
@@ -341,6 +416,7 @@ int Server::speedymeta_batch_reply(MDRequestRef& mdr, bufferlist *bl, Session *s
 	mdr->tracei_phd.clear();
 	mdr->tracedn_phd.clear();
 
+	dout(2) << " _SPEEDYMETA " << "# files prefetched is " << num_phd << dendl;
 	return num_phd;
 }
 
