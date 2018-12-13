@@ -1286,8 +1286,14 @@ public:
 
   #ifdef _SPEEDYMETA_MEASUREMENT
   unsigned long op_access;
+  unsigned long op_getattr;
   unsigned long op_hit;
+  unsigned long op_hit_dir;
+  unsigned long op_miss_dir;
+  unsigned long op_hit_file;
+  unsigned long op_miss_file;
   unsigned long op_metaio;
+  unsigned long ops;
   static void* speedymeta_count_phd_accuracy(void* args);
   #endif
 };

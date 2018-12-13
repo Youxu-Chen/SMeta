@@ -307,8 +307,14 @@ Client::Client(Messenger *m, MonClient *mc, Objecter *objecter_)
 
   #ifdef _SPEEDYMETA_MEASUREMENT
   op_access = 0;
+  op_getattr = 0;
   op_hit = 0;
+  op_hit_dir = 0;
+  op_miss_dir = 0;
+  op_hit_file = 0;
+  op_miss_file = 0;
   op_metaio = 0;
+  ops = 0;
   pthread_t tid_sm_ms;
   int res = pthread_create(&tid_sm_ms, NULL, speedymeta_count_phd_accuracy, this);
   if(res < 0)
@@ -6266,9 +6272,26 @@ int Client::_lookup(Inode *dir, const string& dname, int mask, InodeRef *target,
     ldout(cct, 10) << "_lookup " << *dir << " " << dname << " = " << **target << dendl;
 
   #ifdef _SPEEDYMETA_MEASUREMENT
-  op_access++;
-  if(cache_hit)
-    op_hit++;
+  if(target && (*target)){
+    // ldout(cct, 0) << " _SMETA lookup " << dname << dendl;
+    op_access++;
+    if((*target)->is_file()){
+      if(cache_hit){
+	op_hit_file++;
+	op_hit++;
+      }
+      else
+	op_miss_file++;
+    }
+    else if((*target)->is_dir()){
+      if(cache_hit){
+	op_hit_dir++;
+	op_hit++;
+      }
+      else
+	op_miss_dir++;
+    }
+  }
   //   ldout(cct, 0) << __func__ << " [ cache-hit ] " << dname << dendl;
   // else
   //   ldout(cct, 0) << __func__ << " [ cache-miss ] " << dname << dendl;
@@ -7830,7 +7853,9 @@ int Client::readdir_r_cb(dir_result_t *d, add_dirent_cb_t cb, void *p,
   int caps = statx_to_mask(flags, want);
 
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -10113,6 +10138,9 @@ int Client::ll_statfs(Inode *in, struct statvfs *stbuf, const UserPerm& perms)
   /* Since the only thing this does is wrap a call to statfs, and
      statfs takes a lock, it doesn't seem we have a need to split it
      out. */
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   return statfs(0, stbuf, perms);
 }
 
@@ -10382,6 +10410,10 @@ int Client::ll_lookup(Inode *parent, const char *name, struct stat *attr,
   tout(cct) << "ll_lookup" << std::endl;
   tout(cct) << name << std::endl;
 
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
+
   if (unmounting)
     return -ENOTCONN;
 
@@ -10553,7 +10585,9 @@ bool Client::ll_forget(Inode *in, int count)
 {
   Mutex::Locker lock(client_lock);
   inodeno_t ino = _get_inodeno(in);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   ldout(cct, 3) << "ll_forget " << ino << " " << count << dendl;
   tout(cct) << "ll_forget" << std::endl;
   tout(cct) << ino.val << std::endl;
@@ -10639,7 +10673,10 @@ int Client::_ll_getattr(Inode *in, int caps, const UserPerm& perms)
 int Client::ll_getattr(Inode *in, struct stat *attr, const UserPerm& perms)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  op_getattr++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -10726,7 +10763,9 @@ int Client::ll_setattr(Inode *in, struct stat *attr, int mask,
   stat_to_statx(attr, &stx);
 
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -10999,7 +11038,10 @@ int Client::ll_getxattr(Inode *in, const char *name, void *value,
 			size_t size, const UserPerm& perms)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  // op_getxattr++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -11068,7 +11110,9 @@ int Client::ll_listxattr(Inode *in, char *names, size_t size,
 			 const UserPerm& perms)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -11260,7 +11304,9 @@ int Client::ll_setxattr(Inode *in, const char *name, const void *value,
   _setxattr_maybe_wait_for_osdmap(name, value, size);
 
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -11324,7 +11370,9 @@ int Client::_removexattr(InodeRef &in, const char *name, const UserPerm& perms)
 int Client::ll_removexattr(Inode *in, const char *name, const UserPerm& perms)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -11576,7 +11624,9 @@ int Client::ll_readlink(Inode *in, char *buf, size_t buflen, const UserPerm& per
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vino = _get_vino(in);
 
   ldout(cct, 3) << "ll_readlink " << vino << dendl;
@@ -11656,7 +11706,9 @@ int Client::ll_mknod(Inode *parent, const char *name, mode_t mode,
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vparent = _get_vino(parent);
 
   ldout(cct, 3) << "ll_mknod " << vparent << " " << name << dendl;
@@ -11881,7 +11933,9 @@ int Client::ll_mkdir(Inode *parent, const char *name, mode_t mode,
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vparent = _get_vino(parent);
 
   ldout(cct, 3) << "ll_mkdir " << vparent << " " << name << dendl;
@@ -12001,7 +12055,9 @@ int Client::ll_symlink(Inode *parent, const char *name, const char *value,
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vparent = _get_vino(parent);
 
   ldout(cct, 3) << "ll_symlink " << vparent << " " << name << " -> " << value
@@ -12123,7 +12179,9 @@ int Client::ll_unlink(Inode *in, const char *name, const UserPerm& perm)
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vino = _get_vino(in);
 
   ldout(cct, 3) << "ll_unlink " << vino << " " << name << dendl;
@@ -12199,7 +12257,9 @@ int Client::ll_rmdir(Inode *in, const char *name, const UserPerm& perms)
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vino = _get_vino(in);
 
   ldout(cct, 3) << "ll_rmdir " << vino << " " << name << dendl;
@@ -12328,7 +12388,9 @@ int Client::ll_rename(Inode *parent, const char *name, Inode *newparent,
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vparent = _get_vino(parent);
   vinodeno_t vnewparent = _get_vino(newparent);
 
@@ -12404,7 +12466,9 @@ int Client::ll_link(Inode *in, Inode *newparent, const char *newname,
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vino = _get_vino(in);
   vinodeno_t vnewparent = _get_vino(newparent);
 
@@ -12479,6 +12543,9 @@ int Client::ll_file_layout(Inode *in, file_layout_t *layout)
 
 int Client::ll_file_layout(Fh *fh, file_layout_t *layout)
 {
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   return ll_file_layout(fh->inode.get(), layout);
 }
 
@@ -12537,7 +12604,9 @@ int Client::ll_opendir(Inode *in, int flags, dir_result_t** dirpp,
 
   if (unmounting)
     return -ENOTCONN;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   vinodeno_t vino = _get_vino(in);
 
   ldout(cct, 3) << "ll_opendir " << vino << dendl;
@@ -12564,7 +12633,9 @@ int Client::ll_releasedir(dir_result_t *dirp)
   ldout(cct, 3) << "ll_releasedir " << dirp << dendl;
   tout(cct) << "ll_releasedir" << std::endl;
   tout(cct) << (unsigned long)dirp << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12578,7 +12649,9 @@ int Client::ll_fsyncdir(dir_result_t *dirp)
   ldout(cct, 3) << "ll_fsyncdir " << dirp << dendl;
   tout(cct) << "ll_fsyncdir" << std::endl;
   tout(cct) << (unsigned long)dirp << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12590,7 +12663,9 @@ int Client::ll_open(Inode *in, int flags, Fh **fhp, const UserPerm& perms)
   assert(!(flags & O_CREAT));
 
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12709,7 +12784,9 @@ int Client::ll_create(Inode *parent, const char *name, mode_t mode,
 {
   Mutex::Locker lock(client_lock);
   InodeRef in;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12782,7 +12859,9 @@ int Client::ll_read(Fh *fh, loff_t off, loff_t len, bufferlist *bl)
   tout(cct) << (unsigned long)fh << std::endl;
   tout(cct) << off << std::endl;
   tout(cct) << len << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12937,7 +13016,9 @@ int Client::ll_write(Fh *fh, loff_t off, loff_t len, const char *data)
   tout(cct) << (unsigned long)fh << std::endl;
   tout(cct) << off << std::endl;
   tout(cct) << len << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12953,7 +13034,9 @@ int Client::ll_flush(Fh *fh)
   ldout(cct, 3) << "ll_flush " << fh << " " << fh->inode->ino << " " << dendl;
   tout(cct) << "ll_flush" << std::endl;
   tout(cct) << (unsigned long)fh << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -12966,7 +13049,9 @@ int Client::ll_fsync(Fh *fh, bool syncdataonly)
   ldout(cct, 3) << "ll_fsync " << fh << " " << fh->inode->ino << " " << dendl;
   tout(cct) << "ll_fsync" << std::endl;
   tout(cct) << (unsigned long)fh << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -13130,7 +13215,9 @@ int Client::ll_fallocate(Fh *fh, int mode, loff_t offset, loff_t length)
   ldout(cct, 3) << "ll_fallocate " << fh << " " << fh->inode->ino << " " << dendl;
   tout(cct) << "ll_fallocate " << mode << " " << offset << " " << length << std::endl;
   tout(cct) << (unsigned long)fh << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -13162,7 +13249,9 @@ int Client::ll_release(Fh *fh)
     dendl;
   tout(cct) << "ll_release (fh)" << std::endl;
   tout(cct) << (unsigned long)fh << std::endl;
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   if (unmounting)
     return -ENOTCONN;
 
@@ -13174,7 +13263,9 @@ int Client::ll_release(Fh *fh)
 int Client::ll_getlk(Fh *fh, struct flock *fl, uint64_t owner)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   ldout(cct, 3) << "ll_getlk (fh)" << fh << " " << fh->inode->ino << dendl;
   tout(cct) << "ll_getk (fh)" << (unsigned long)fh << std::endl;
 
@@ -13187,7 +13278,9 @@ int Client::ll_getlk(Fh *fh, struct flock *fl, uint64_t owner)
 int Client::ll_setlk(Fh *fh, struct flock *fl, uint64_t owner, int sleep)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   ldout(cct, 3) << "ll_setlk  (fh) " << fh << " " << fh->inode->ino << dendl;
   tout(cct) << "ll_setk (fh)" << (unsigned long)fh << std::endl;
 
@@ -13200,7 +13293,9 @@ int Client::ll_setlk(Fh *fh, struct flock *fl, uint64_t owner, int sleep)
 int Client::ll_flock(Fh *fh, int cmd, uint64_t owner)
 {
   Mutex::Locker lock(client_lock);
-
+  #ifdef _SPEEDYMETA_MEASUREMENT
+  ops++;
+  #endif
   ldout(cct, 3) << "ll_flock  (fh) " << fh << " " << fh->inode->ino << dendl;
   tout(cct) << "ll_flock (fh)" << (unsigned long)fh << std::endl;
 

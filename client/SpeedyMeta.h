@@ -472,8 +472,8 @@ void *Client::speedymeta_count_phd_accuracy(void *args){
 		if(client->total_phd != 0 && client->period_phd != 0){
 			accuracy_total_phd = client->total_phd_access/client->total_phd;
 			accuracy_period_phd = client->period_phd_access/client->period_phd;
-			ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [Accuracy-total-phd] = " << client->total_phd_access << "/" << client->total_phd << " " << accuracy_total_phd << dendl;
-			ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [Accuracy-period-phd] = " << client->period_phd_access << "/" << client->period_phd << " " << accuracy_period_phd << dendl;
+			// ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [Accuracy-total-phd] = " << client->total_phd_access << "/" << client->total_phd << " " << accuracy_total_phd << dendl;
+			// ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [Accuracy-period-phd] = " << client->period_phd_access << "/" << client->period_phd << " " << accuracy_period_phd << dendl;
 		}
 		// clean up parameters
 		client->period_phd = 0;
@@ -482,10 +482,14 @@ void *Client::speedymeta_count_phd_accuracy(void *args){
 		for(ceph::unordered_map<vinodeno_t, Inode*>::iterator it = client->inode_map.begin(); it != client->inode_map.end(); it++)
 			it->second->period_times_phd = 0;
 		// #endif
-
-		// ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [OP-ACCESS] " << client->op_access << dendl;
+		ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [OPS] " << client->ops << dendl;
+		ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [OP-ACCESS] " << client->op_access << dendl;
 		// ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [OP-HIT] " << client->op_hit << dendl;
-		// ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [OP-METAIO] " << client->op_metaio << dendl;
+		ldout(client->Dispatcher::cct, 0) << " _SMETA [CACHE] " << "op_access " << client->op_access << " dir_hit " << client->op_hit_dir << " dir_miss " << client->op_miss_dir << " file_hit " << client->op_hit_file << " fiel_miss " << client->op_miss_file << " total_hit " << client->op_hit << dendl;
+		// ldout(client->Dispatcher::cct, 0) << " _SPEEDTMETA " << __func__ << " [CACHE] " << " Total: hit/access " << client->op_hit << "/" << client->op_access << "=" << ((double)client->op_hit)/((double)client->op_access) << dendl;
+		// ldout(client->Dispatcher::cct, 0) << " _SPEEDTMETA " << __func__ << " [CACHE] " << " Dir: hit " << client->op_hit_dir << " miss " << client->op_miss_dir << " Total:hit/access "  << client->op_hit_dir << "/" << client->op_access << "=" << ((double)client->op_hit_dir)/((double)client->op_access) << dendl;
+		// ldout(client->Dispatcher::cct, 0) << " _SPEEDTMETA " << __func__ << " [CACHE] " << " File: hit " << client->op_hit_file << " miss " << client->op_miss_file << " Total:hit/access "  << client->op_hit_file << "/" << client->op_access << "=" << ((double)client->op_hit_file)/((double)client->op_access) << dendl;
+		ldout(client->Dispatcher::cct, 0) << " _SPEEDYMETA " << __func__ << " [OP-METAIO] " << client->op_metaio << dendl;
 	}
 
 	return NULL;
